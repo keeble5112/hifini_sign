@@ -1,0 +1,32 @@
+name: 每日自动签到  # 给任务起个名字
+
+on:
+  schedule:
+    # 每天北京时间早上8点运行（注意这里是UTC时间0点）
+    - cron: '0 0 * * *'  # 格式：分钟 小时 * * *
+  workflow_dispatch:  # 允许手动运行
+
+jobs:
+  自动运行脚本:
+    runs-on: ubuntu-latest  # 使用免费的Linux服务器
+    
+    steps:
+    # 第一步：获取仓库代码
+    - name: 下载代码
+      uses: actions/checkout@v4
+    
+    # 第二步：安装Python
+    - name: 安装Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"  # 指定Python版本
+    
+    # 第三步：安装依赖库
+    - name: 安装需要的库
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt  # 安装你需要的库
+        
+    # 第四步：运行你的脚本
+    - name: 执行Python脚本
+      run: python 自动签到-无法弄弄.py  # 改成你的脚本文件名
