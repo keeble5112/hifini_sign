@@ -7,7 +7,7 @@ on:
   workflow_dispatch:  # 允许手动运行
 
 jobs:
-  自动运行脚本:
+  run_script:
     runs-on: ubuntu-latest  # 使用免费的Linux服务器
     
     steps:
