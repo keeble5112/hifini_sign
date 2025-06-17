@@ -3,7 +3,7 @@ name: 每日签到任务
 on:
   # 触发条件：定时 + 代码推送 + 手动
   schedule:
-    - cron: '0 0 * * *'  # UTC 0点（北京时间8点）
+    - cron: '0 16 * * *'  # UTC 0点（北京时间8点）
   push:                   # 添加代码推送触发
     branches: [ main ]
   workflow_dispatch:
