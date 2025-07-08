@@ -1,93 +1,59 @@
+# .github/workflows/main.yml
+
 name: HiFiNi 每日签到任务
 
 on:
   # 触发条件
   schedule:
     # 每天北京时间 23:57 运行 (对应 UTC 时间 15:57)
-    # cron表达式基于UTC时间，所以 15:57 UTC = 23:57 北京时间
+    # cron表达式基于UTC时间，所以 '57 15 * * *' UTC = 23:57 北京时间
     - cron: '57 15 * * *'
   
   workflow_dispatch:
     # 允许你在 GitHub Actions 页面手动点击 "Run workflow" 来触发任务
-    # 这对于测试非常有用，所以我保留了它。
+    # 这对于测试非常有用。
 
-  # push 触发通常用于CI/CD，对于签到任务来说不是必需的。
-  # 如果你希望每次提交代码都运行一次签到（用于测试），可以保留。
-  # 如果只想定时和手动运行，可以注释或删除下面3行。
+  # push 触发器，当代码被推送到 main 分支时运行
+  # 如果你只想定时和手动运行，可以注释或删除下面三行。
   push:
     branches: [ "main" ]
 
 jobs:
   sign_job:
-    # 指定运行环境
+    # 指定运行环境为最新的 Ubuntu
     runs-on: ubuntu-latest
     
     steps:
-    # 步骤1：检出你的代码库
-    - name: 检出代码
-      uses: actions/checkout@v4
+      # 步骤1：从你的仓库检出代码到 Actions runner 中
+      - name: 检出代码
+        uses: actions/checkout@v4
 
-    # 步骤2：设置Python环境
-    - name: 设置Python 3.10 环境
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.10"
-        # 增加缓存，可以加快后续构建速度
-        cache: 'pip'
+      # 步骤2：设置 Python 3.10 环境，并启用依赖缓存以加快构建速度
+      - name: 设置Python 3.10 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: 'pip'
 
-    # 步骤3：安装依赖库
-    - name: 安装依赖
-      run: |
-        python -m pip install --upgrade pip
-        # 从 requirements.txt 文件安装依赖
-        pip install -r requirements.txt
+      # 步骤3：安装 Python 依赖库
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
         
-    # 步骤4：执行签到脚本
-    - name: 执行 HiFiNi 签到脚本
-      # 使用 env 块来安全地传递 secrets 和设置时区
-      env:
-        # --- 关键修改：从 GitHub Secrets 读取敏感信息 ---
-        # 请确保你已经在仓库的 Settings > Secrets and variables > Actions 中创建了这些Secrets
-        HIFINI_COOKIE: ${{ secrets.HIFINI_COOKIE }}
-        SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
-        SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
-        RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+      # 步骤4：执行签到脚本
+      - name: 执行 HiFiNi 签到脚本
+        # 使用 env 块来安全地传递 secrets 和设置时区
+        env:
+          # 从 GitHub Secrets 读取敏感信息
+          # 请确保你已经在仓库的 Settings > Secrets and variables > Actions 中创建了这些Secrets
+          HIFINI_COOKIE: ${{ secrets.HIFINI_COOKIE }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          
+          # 设置时区为北京时间，确保脚本内获取的时间是正确的
+          TZ: Asia/Shanghai
         
-        # --- 关键修改：设置时区为北京时间 ---
-        TZ: Asia/Shanghai
-        
-      run: python "自动签到-无法弄弄.py"name: 每日签到任务
-
-on:
-  # 触发条件：定时 + 代码推送 + 手动
-  schedule:
-    - cron: '57 15 * * *'  # UTC 0点（北京时间8点）
-  push:                   # 添加代码推送触发
-    branches: [ main ]
-  workflow_dispatch:
-
-jobs:
-  sign_job:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: 下载最新代码
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # 获取完整历史记录
-    
-    - name: 清除缓存
-      run: pip cache purge  # 清除旧缓存
-    
-    - name: 设置Python环境
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.10"
-    
-    - name: 安装依赖
-      run: |
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        
-    - name: 执行签到脚本
-      run: python "自动签到-无法弄弄.py"  # 确保文件名正确
+        # 运行你的 Python 脚本
+        run: python "自动签到-无法弄弄.py"
