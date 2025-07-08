@@ -15,19 +15,28 @@ COOKIES_STR = 'bbs_sid=fhur6maj38jg6g9a2sjhdpm96g; __51cke__=; _wish_accesscount
 EMAIL_ENABLED = True
 
 # --- SMTP服务器配置 ---
-# (以QQ邮箱为例，其他邮箱请自行修改)
-SMTP_SERVER = 'smtp.163.com'      # 例如: smtp.qq.com, smtp.163.com
-SMTP_PORT = 465                  # SSL端口，通常是 465 或 587 (TLS)
+SMTP_SERVER = 'smtp.163.com'
+SMTP_PORT = 465
 
 # --- 发件人邮箱信息 ---
-# !! 注意：SENDER_PASSWORD 不是你的邮箱登录密码，而是上面获取的 "授权码" !!
-SENDER_EMAIL = 'keeble5112@163.com'      # 你的发件人邮箱地址
-SENDER_PASSWORD = 'RPTVk33a4Uww3Ccr'   # 你的邮箱授权码
+SENDER_EMAIL = 'keeble5112@163.com'
+SENDER_PASSWORD = 'RPTVk33a4Uww3Ccr' # 授权码
 
 # --- 收件人邮箱信息 ---
-RECIPIENT_EMAIL = 'keeble5112@163.com' # 接收报告的邮箱地址
+RECIPIENT_EMAIL = 'keeble5112@163.com'
 
 # ============================  脚本核心代码 (通常无需修改)  ============================
+
+# --- 关键修改：定义一个更像浏览器的请求头 ---
+HEADERS = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Cache-Control': 'max-age=0',
+    'Connection': 'keep-alive',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+    # 'X-Requested-With' 只在POST时需要，所以单独处理
+}
 
 BASE_URL = "https://www.hifini.com.cn"
 SIGN_URL = f"{BASE_URL}/sg_sign.htm"
@@ -43,14 +52,15 @@ def parse_cookies(cookie_str: str) -> dict:
             key, value = item.split('=', 1)
             cookie_dict[key.strip()] = value.strip()
         except ValueError:
-            pass # 忽略无法解析的项
+            pass
     return cookie_dict
 
 def check_login_status(session: requests.Session) -> (bool, str):
     """访问签到页面，检查登录状态，并返回状态和消息"""
     print("1. 正在访问签到页面，检查登录状态...")
     try:
-        response = session.get(SIGN_URL, timeout=10)
+        # --- 关键修改：在GET请求中也加入Headers ---
+        response = session.get(SIGN_URL, headers=HEADERS, timeout=15)
         response.raise_for_status()
 
         if 'user-logout.htm' in response.text:
@@ -70,21 +80,24 @@ def check_login_status(session: requests.Session) -> (bool, str):
 def do_sign_in(session: requests.Session) -> str:
     """发送POST请求完成签到，并返回结果消息"""
     print("\n2. 正在发送签到请求...")
-    headers = {
-        'Referer': SIGN_URL,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-        'X-Requested-With': 'XMLHttpRequest'
-    }
+    # 复制全局headers，并添加POST请求特有的'X-Requested-With'
+    post_headers = HEADERS.copy()
+    post_headers['Referer'] = SIGN_URL
+    post_headers['X-Requested-With'] = 'XMLHttpRequest'
+    
     try:
-        response = session.post(SIGN_URL, data={}, headers=headers, timeout=10)
+        response = session.post(SIGN_URL, data={}, headers=post_headers, timeout=15)
         response.raise_for_status()
-        result = response.json()
-        message = result.get('message', '未知响应')
         
-        if result.get('code') == 0:
-            msg = f"✅ 签到成功！服务器返回: {message}"
-        else:
-            msg = f"ℹ️  操作完成。服务器返回: {message}"
+        try:
+            result = response.json()
+            message = result.get('message', '未知响应')
+            if result.get('code') == 0:
+                msg = f"✅ 签到成功！服务器返回: {message}"
+            else:
+                msg = f"ℹ️  操作完成。服务器返回: {message}"
+        except json.JSONDecodeError:
+            msg = f"❌ 服务器返回的不是有效的JSON格式。响应内容: {response.text[:200]}" # 记录部分响应内容
         
         print(f"   - {msg}")
         return msg
@@ -93,10 +106,7 @@ def do_sign_in(session: requests.Session) -> str:
         msg = f"❌ 发送签到请求失败: {e}"
         print(f"   - {msg}")
         return msg
-    except json.JSONDecodeError:
-        msg = "❌ 服务器返回的不是有效的JSON格式。"
-        print(f"   - {msg}")
-        return msg
+
 
 def send_email(subject: str, body: str):
     """发送邮件通知"""
@@ -112,7 +122,6 @@ def send_email(subject: str, body: str):
     msg['Subject'] = Header(subject, 'utf-8')
 
     try:
-        # 使用SSL加密连接
         server = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT)
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.sendmail(SENDER_EMAIL, [RECIPIENT_EMAIL], msg.as_string())
@@ -124,22 +133,18 @@ def send_email(subject: str, body: str):
 
 
 if __name__ == '__main__':
-    # 检查基本配置
-    if not COOKIES_STR or 'xxxx' in COOKIES_STR:
+    if not COOKIES_STR or 'bbs_sid' not in COOKIES_STR:
         print("错误：请先在脚本顶部填写你的 `COOKIES_STR`。")
         exit()
     
-    if EMAIL_ENABLED and ('your_' in SENDER_EMAIL or 'your_' in SENDER_PASSWORD):
-        print("错误：邮件通知已启用，但邮件配置信息不完整。")
-        print("      请填写 `SENDER_EMAIL`, `SENDER_PASSWORD` 和 `RECIPIENT_EMAIL`。")
-        exit()
-
+    if EMAIL_ENABLED and ('keeble5112' in SENDER_EMAIL or 'RPTV' in SENDER_PASSWORD):
+        print("提示：您正在使用示例邮件配置，请确保已替换为您自己的信息。")
+    
     report_lines = []
     
     session = requests.Session()
     session.cookies.update(parse_cookies(COOKIES_STR))
 
-    # 执行签到流程
     is_logged_in, login_message = check_login_status(session)
     report_lines.append(login_message)
 
@@ -147,18 +152,15 @@ if __name__ == '__main__':
         sign_in_message = do_sign_in(session)
         report_lines.append(sign_in_message)
 
-    # 准备并发送邮件
     today_str = datetime.now().strftime('%Y-%m-%d %H:%M')
-    email_subject = f"HiFiNi 签到报告 - {today_str}"
-    
-    # 根据结果确定邮件主题的情感色彩
     final_report_str = "\n".join(report_lines)
-    if "✅" in final_report_str:
-        email_subject = f"✅ {email_subject}"
+    
+    if "✅" in final_report_str and "❌" not in final_report_str:
+        email_subject = f"✅ HiFiNi 签到成功 - {today_str}"
     elif "❌" in final_report_str:
-        email_subject = f"❌ {email_subject}"
+        email_subject = f"❌ HiFiNi 签到失败 - {today_str}"
     else:
-        email_subject = f"ℹ️ {email_subject}"
+        email_subject = f"ℹ️ HiFiNi 签到报告 - {today_str}"
 
     email_body = f"HiFiNi 自动签到任务报告：\n\n"
     email_body += "================================\n"
