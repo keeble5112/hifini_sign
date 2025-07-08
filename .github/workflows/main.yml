@@ -1,5 +1,3 @@
-# .github/workflows/checkin.yml
-
 name: HiFiNi 每日签到任务
 
 on:
